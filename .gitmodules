@@ -1,0 +1,6 @@
+[submodule "jerasure-sys/vendor/gf-complete"]
+	path = jerasure-sys/vendor/gf-complete
+	url = https://github.com/ceph/gf-complete.git
+[submodule "jerasure-sys/vendor/jerasure"]
+	path = jerasure-sys/vendor/jerasure
+	url = https://github.com/LokyinZHAO/jerasure.git
