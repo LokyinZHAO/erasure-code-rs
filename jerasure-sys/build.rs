@@ -7,7 +7,11 @@ use std::{
 fn main() {
     build_gf_complete();
     build_jerasure();
-    bindgen_jerasure();
+    const LIB_GF_FILE: &str = "gf_complete";
+    const LIB_JR_FILE: &str = "Jerasure";
+    // WARNING: The order of the following lines is important
+    println!("cargo:rustc-link-lib=static={}", LIB_JR_FILE);
+    println!("cargo:rustc-link-lib=static={}", LIB_GF_FILE);
 }
 
 fn build_gf_complete() {
@@ -19,29 +23,33 @@ fn build_gf_complete() {
     let module_dir = std::fs::canonicalize(MODULE_DIR).expect("gf-complete directory not found");
 
     // Copy source files to writable directory in `OUT_DIR`
-    let out_src_dir = PathBuf::from(std::env::var_os("OUT_DIR").unwrap())
-        .join("src")
-        .join(LIB_NAME);
-    create_dir_all(&out_src_dir)
-        .unwrap_or_else(|_| panic!("Failed to create {}", out_src_dir.display()));
-    cp_r(module_dir, out_src_dir.clone());
+    let out_dir = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
+    let src_dir = out_dir.join("src").join(LIB_NAME);
+    let lib_dir = out_dir.join("lib");
+    let build_dir = out_dir.join("build");
+
+    // copy src
+    create_dir_all(&src_dir).unwrap_or_else(|_| panic!("Failed to create {}", src_dir.display()));
+    cp_r(module_dir, src_dir.clone());
 
     // Run `./autogen.sh`
     Command::new("sh")
-        .current_dir(out_src_dir.clone())
+        .current_dir(src_dir.clone())
         .arg("autogen.sh")
         .status()
         .unwrap();
 
     // Build using autotools
-    let install_root_dir = autotools::build(out_src_dir);
+    let _install_root_dir = autotools::build(src_dir);
 
     // link the library
     println!(
         "cargo:rustc-link-search=native={}",
-        install_root_dir.display()
+        lib_dir.canonicalize().unwrap().display()
     );
-    println!("cargo:rustc-link-lib=static={}", LIB_NAME);
+
+    // cleanup the build dir
+    std::fs::remove_dir_all(build_dir).unwrap();
 }
 
 fn build_jerasure() {
@@ -50,31 +58,42 @@ fn build_jerasure() {
     const MODULE_DIR: &str = "./vendor/jerasure";
 
     // Submodule directory containing upstream source files (readonly)
-    let module_dir = std::fs::canonicalize(MODULE_DIR).expect("jerasure directory not found");
+    let module_dir = std::fs::canonicalize(MODULE_DIR).expect("jerasure src directory not found");
 
     // Copy source files to writable directory in `OUT_DIR`
-    let out_src_dir = PathBuf::from(std::env::var_os("OUT_DIR").unwrap())
-        .join("src")
-        .join(LIB_NAME);
-    create_dir_all(&out_src_dir)
-        .unwrap_or_else(|_| panic!("Failed to create {}", out_src_dir.display()));
-    cp_r(module_dir, out_src_dir.clone());
+    let out_dir = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
+    let src_dir = out_dir.join("src").join(LIB_NAME);
+    let include_dir = out_dir.join("include");
+    let lib_dir = out_dir.join("lib");
+    let build_dir = out_dir.join("build");
+
+    // copy source
+    create_dir_all(&src_dir).unwrap_or_else(|_| panic!("Failed to create {}", src_dir.display()));
+    cp_r(module_dir, src_dir.clone());
 
     // Run `autorecofig`
     Command::new("autoreconf")
-        .current_dir(out_src_dir.clone())
+        .current_dir(src_dir.clone())
         .args(&["--force", "--install"])
         .status()
         .unwrap();
 
     // Build using autotools
-    let _install_root_dir = autotools::Config::new(out_src_dir.clone())
+    let flag = format!(
+        "-L{} -I{}",
+        lib_dir.canonicalize().unwrap().display(),
+        include_dir.canonicalize().unwrap().display()
+    );
+    let _install_root_dir = autotools::Config::new(src_dir.clone())
         // .reconf("--force --install")
+        .cflag(flag)
         .build();
-    println!("cargo:rustc-link-lib=static={}", LIB_NAME);
+
+    // cleanup the build dir
+    std::fs::remove_dir_all(build_dir).unwrap();
 }
 
-fn bindgen() {
+fn _bindgen() {
     // let out_path = PathBuf::from(std::env::var("OUT_DIR").unwrap());
     // let include_dir = out_path.join("include");
     // fn find_headers(dir: &Path, headers: &mut Vec<PathBuf>) {
@@ -112,6 +131,7 @@ fn bindgen() {
     //     .expect("Couldn't write bindings!");
 }
 
+#[allow(dead_code)]
 fn bindgen_jerasure() {
     const INCLUDE_DIR: &str = "./vendor/jerasure/include";
     const OUT_DIR: &str = "./src/bind_sys.rs";
