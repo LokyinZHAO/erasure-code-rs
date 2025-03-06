@@ -1,15 +1,14 @@
-#[allow(non_camel_case_types)]
-mod bind_sys;
-pub use bind_sys::*;
+pub mod gf_complete;
+pub mod jerasure;
 
 #[cfg(test)]
 mod test {
-    use crate::bind_sys;
+    use crate::jerasure;
 
     #[test]
     fn test_multiply() {
         unsafe {
-            assert_eq!(bind_sys::galois_single_multiply(48, 18, 8), 71_i32);
+            assert_eq!(jerasure::galois_single_multiply(48, 18, 8), 71_i32);
         }
     }
 }
